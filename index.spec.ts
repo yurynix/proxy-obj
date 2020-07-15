@@ -120,4 +120,36 @@ describe('proxy', () => {
         expect(proxiedObj.hello).toBe(undefined);
         expect(mockFn).not.toBeCalled();
     });
+
+    it('async function returns object', async () => {
+        const obj = {
+            nested: {
+                fn1: async () => {
+                    return {
+                        'hello': 'world'
+                    };
+                },
+                fn2: async () => {
+                    return {
+                        'hello': 'this is dog'
+                    };
+                }
+
+            }
+        };
+
+        const mockFn = jest.fn();
+        const proxiedObj = tracePropAccess(obj, { callback: mockFn });
+
+        expect((await proxiedObj.nested.fn1('someArg')).hello).toBe('world');
+        expect((await proxiedObj.nested.fn2()).hello).toBe('this is dog');
+        expect(mockFn).nthCalledWith(1, [
+            [{key: 'nested', type: 'object'}, {key: 'fn1', type: 'function', callArgs: ['someArg'] }],
+            [{key: 'hello', type: 'string'}]
+        ], 'world');
+        expect(mockFn).nthCalledWith(2, [
+            [{key: 'nested', type: 'object'}, {key: 'fn2', type: 'function', callArgs: [] }],
+            [{key: 'hello', type: 'string'}]
+        ], 'this is dog');
+    });
 });

@@ -1,55 +1,67 @@
 export type PathPartType = 'function' | 'object' | 'string' | 'number';
 
-export type PathPart =  {
-  key: string;
-  type: PathPartType;
-} | {
-  type: 'function';
-  callArgs: any[];
-};
+export type PathPart =
+  | {
+      key: string;
+      type: PathPartType;
+    }
+  | {
+      key: string;
+      type: 'function';
+      callArgs: any[];
+    };
 
 export interface TracePropAccessOptions {
-  callback?: (paths: PathPart[][], result: any) => void,
-  shouldFollow?: (target: any, propKey: any) => boolean
+  callback?(paths: PathPart[][], result: any): void;
+  shouldFollow?(target: any, propKey: any): boolean;
 }
 
 export function tracePropAccess(
   obj: any,
   options: TracePropAccessOptions,
-  paths: PathPart[][] = [[]]
+  paths: PathPart[][] = [[]],
 ): any {
-  const actualOptions = Object.assign({}, {
-    callback: () => { },
+  const actualOptions = {
+    callback: () => {},
     shouldFollow: () => true,
-  }, options);
+    ...options,
+  };
   return new Proxy(obj, {
     get(target, propKey, receiver) {
       const reflectedProp = Reflect.get(target, propKey, receiver);
-      if (!(propKey in target) || !actualOptions.shouldFollow(target, propKey)) {
+      if (
+        !(propKey in target) ||
+        !actualOptions.shouldFollow(target, propKey)
+      ) {
         return reflectedProp;
       }
-      paths[paths.length - 1] = [...paths[paths.length - 1], { key: propKey.toString(), type: (typeof reflectedProp) as PathPartType }];
+      const workingPaths = paths.map(pathArr => [...pathArr]);
+
+      workingPaths[workingPaths.length - 1] = [
+        ...workingPaths[workingPaths.length - 1],
+        { key: propKey.toString(), type: typeof reflectedProp as PathPartType },
+      ];
       if (reflectedProp) {
-        if (typeof reflectedProp === "object") {
-          return tracePropAccess(reflectedProp, actualOptions, paths);
+        if (typeof reflectedProp === 'object') {
+          return tracePropAccess(reflectedProp, actualOptions, workingPaths);
         }
 
-        if (typeof reflectedProp === "function") {
+        if (typeof reflectedProp === 'function') {
           return (...args: any) => {
-            paths[paths.length - 1].pop();
-            paths[paths.length - 1].push({
+            workingPaths[workingPaths.length - 1].pop();
+            workingPaths[workingPaths.length - 1].push({
               key: propKey.toString(),
               type: 'function',
               callArgs: args,
             });
-            const newPaths = [...paths, []];
+            const newPaths = [...workingPaths, []];
             const fnResult = reflectedProp.apply(target, args);
 
-            if (typeof fnResult !== "object" || !fnResult) {
+            if (typeof fnResult !== 'object' || !fnResult) {
               return fnResult;
             }
 
-            if (typeof fnResult.then === "function") {
+            if (typeof fnResult.then === 'function') {
               return fnResult.then((result: any) => {
                 if (typeof result === 'object' && result) {
                   return tracePropAccess(result, actualOptions, newPaths);
@@ -57,7 +69,7 @@ export function tracePropAccess(
 
                 actualOptions.callback(newPaths, result);
                 return result;
-              })
+              });
             }
 
             return tracePropAccess(fnResult, actualOptions, newPaths);
@@ -65,7 +77,7 @@ export function tracePropAccess(
         }
       }
 
-      actualOptions.callback(paths, target[propKey]);
+      actualOptions.callback(workingPaths, target[propKey]);
       return reflectedProp;
     },
   });
