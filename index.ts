@@ -1,15 +1,28 @@
-export type PathPartType = 'function' | 'object' | 'string' | 'number';
+//export type PathPartType = 'function' | 'object' | 'string' | 'number';
 
-export type PathPart =
-  | {
-      key: string;
-      type: PathPartType;
-    }
-  | {
-      key: string;
-      type: 'function';
-      callArgs: any[];
-    };
+export enum PathPartType {
+  function = 'function',
+  object = 'object',
+  string = 'string',
+  number = 'number',
+  boolean = 'boolean',
+  symbol = 'symbol',
+  undefined = 'undefined',
+  bigint = 'bigint',
+}
+
+export interface BasePathPart {
+  key: string;
+  type: Exclude<PathPartType, PathPartType.function>;
+}
+
+export interface FunctionPathPart {
+  key: string;
+  type: PathPartType.function;
+  callArgs: any[];
+}
+
+export type PathPart = BasePathPart | FunctionPathPart;
 
 export interface TracePropAccessOptions {
   callback?(paths: PathPart[][], result: any): void;
@@ -37,9 +50,21 @@ export function tracePropAccess(
       }
       const workingPaths = paths.map(pathArr => [...pathArr]);
 
+      const newPathEntry =
+        typeof reflectedProp === 'function'
+          ? ({
+              key: propKey.toString(),
+              type: PathPartType.function,
+              callArgs: [],
+            } as FunctionPathPart)
+          : ({
+              key: propKey.toString(),
+              type: PathPartType[typeof reflectedProp],
+            } as BasePathPart);
+
       workingPaths[workingPaths.length - 1] = [
         ...workingPaths[workingPaths.length - 1],
-        { key: propKey.toString(), type: typeof reflectedProp as PathPartType },
+        newPathEntry,
       ];
       if (reflectedProp) {
         if (typeof reflectedProp === 'object') {
@@ -51,7 +76,7 @@ export function tracePropAccess(
             workingPaths[workingPaths.length - 1].pop();
             workingPaths[workingPaths.length - 1].push({
               key: propKey.toString(),
-              type: 'function',
+              type: PathPartType.function,
               callArgs: args,
             });
             const newPaths = [...workingPaths, []];
