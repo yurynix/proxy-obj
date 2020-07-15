@@ -70,7 +70,7 @@ describe('proxy', () => {
         const proxiedObj = tracePropAccess(obj, { callback: mockFn });
 
         expect(await proxiedObj.nested.fn('someArg')).toBe(5);
-        expect(mockFn).toBeCalledWith([[{key: 'nested', type: 'object'}, {key: 'fn', type: 'function', callArgs: ['someArg'] }], []], 5);
+        expect(mockFn).toBeCalledWith([[{key: 'nested', type: 'object'}, {key: 'fn', type: 'function', callArgs: ['someArg'] }]], 5);
     });
 
     it('async function returns object', async () => {

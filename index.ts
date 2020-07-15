@@ -67,6 +67,7 @@ export function tracePropAccess(
                   return tracePropAccess(result, actualOptions, newPaths);
                 }
 
+                newPaths.pop();
                 actualOptions.callback(newPaths, result);
                 return result;
               });
