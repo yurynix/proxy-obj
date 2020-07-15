@@ -29,6 +29,9 @@ export interface TracePropAccessOptions {
   shouldFollow?(target: any, propKey: any): boolean;
 }
 
+const isDataObject = (obj: any) =>
+  Buffer.isBuffer(obj) || typeof obj.byteLength === 'number';
+
 export function tracePropAccess(
   obj: any,
   options: TracePropAccessOptions,
@@ -40,8 +43,9 @@ export function tracePropAccess(
     ...options,
   };
   return new Proxy(obj, {
-    get(target, propKey, receiver) {
-      const reflectedProp = Reflect.get(target, propKey, receiver);
+    get(target: any, propKey: any) {
+      const reflectedProp = Reflect.get(target, propKey);
+
       if (
         !(propKey in target) ||
         !actualOptions.shouldFollow(target, propKey)
@@ -67,12 +71,12 @@ export function tracePropAccess(
         newPathEntry,
       ];
       if (reflectedProp) {
-        if (typeof reflectedProp === 'object') {
+        if (typeof reflectedProp === 'object' && !isDataObject(reflectedProp)) {
           return tracePropAccess(reflectedProp, actualOptions, workingPaths);
         }
 
         if (typeof reflectedProp === 'function') {
-          return (...args: any) => {
+          return function(...args: any) {
             workingPaths[workingPaths.length - 1].pop();
             workingPaths[workingPaths.length - 1].push({
               key: propKey.toString(),
@@ -80,6 +84,7 @@ export function tracePropAccess(
               callArgs: args,
             });
             const newPaths = [...workingPaths, []];
+            //@ts-ignore
             const fnResult = reflectedProp.apply(target, args);
 
             if (typeof fnResult !== 'object' || !fnResult) {
@@ -88,11 +93,17 @@ export function tracePropAccess(
 
             if (typeof fnResult.then === 'function') {
               return fnResult.then((result: any) => {
-                if (typeof result === 'object' && result) {
+                if (
+                  typeof result === 'object' &&
+                  result &&
+                  !isDataObject(result)
+                ) {
+                  console.log('trapping!', isDataObject(result), result);
                   return tracePropAccess(result, actualOptions, newPaths);
                 }
 
                 newPaths.pop();
+                console.log('blat', newPaths, result);
                 actualOptions.callback(newPaths, result);
                 return result;
               });

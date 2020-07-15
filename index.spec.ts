@@ -91,7 +91,6 @@ describe('proxy', () => {
         expect(mockFn).toBeCalledWith([[{key: 'nested', type: 'object'}, {key: 'fn', type: 'function', callArgs: ['someArg'] }], [{key: 'hello', type: 'string'}]], 'world');
     });
 
-
     it('should not follow if predicate returns false', async () => {
         const obj = {
             nested: {
@@ -151,5 +150,43 @@ describe('proxy', () => {
             [{key: 'nested', type: 'object'}, {key: 'fn2', type: 'function', callArgs: [] }],
             [{key: 'hello', type: 'string'}]
         ], 'this is dog');
+    });
+
+    it('should consider typed arrays and buffers as literals', async () => {
+        const obj = {
+            nested: {
+                fn: async () => {
+                    return new Uint16Array([0x30]);
+                }
+            }
+        };
+
+
+        const mockFn = jest.fn();
+        const proxiedObj = tracePropAccess(obj, { callback: mockFn });
+
+        const result = (await proxiedObj.nested.fn('someArg'));
+        expect(mockFn).toBeCalledWith([[{key: 'nested', type: 'object'}, {key: 'fn', type: 'function', callArgs: ['someArg'] }]], new Uint16Array([0x30]));
+        expect(typeof result).toBe('object');
+        expect(result).toBeInstanceOf(Uint16Array)
+    });
+
+    it.only('should consider typed arrays and buffers as literals', async () => {
+        const obj = {
+            nested: {
+                fn: async () => ({
+                    hello: new Uint16Array([0x30])
+                })
+            }
+        };
+
+
+        const mockFn = jest.fn();
+        const proxiedObj = tracePropAccess(obj, { callback: mockFn });
+
+        const result = (await proxiedObj.nested.fn('someArg')).hello;
+        expect(mockFn).toBeCalledWith([[{key: 'nested', type: 'object'}, {key: 'fn', type: 'function', callArgs: ['someArg'] }], [{key: 'hello', type: 'object'}]], new Uint16Array([0x30]));
+        expect(typeof result).toBe('object');
+        expect(result).toBeInstanceOf(Uint16Array)
     });
 });
